@@ -1,1 +1,303 @@
-Hello
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Генератор сум прописом | UAH Writer</title>
+    <style>
+        :root {
+            --primary: #4CAF50;
+            --primary-dark: #45a049;
+            --background: #f5f5f5;
+            --text: #333;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .container {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+            transform: scale(0.95);
+            opacity: 0;
+            animation: appear 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes appear {
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 2rem;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .input-group {
+            position: relative;
+            margin: 2rem 0;
+        }
+
+        input {
+            width: 100%;
+            padding: 1.2rem;
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(76,175,80,0.2);
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .result-box {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.4s ease;
+        }
+
+        .result-box.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .result-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255,255,255,0.4),
+                transparent
+            );
+            transition: 0.5s;
+        }
+
+        .result-box:hover::before {
+            left: 100%;
+        }
+
+        .currency-symbol {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.2em;
+            color: #666;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 1.5rem;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤑 Генератор сум UAH</h1>
+        
+        <div class="input-group">
+            <input type="number" id="amount" step="0.01" min="0" max="15000000" 
+                   placeholder="Введіть суму в гривнях">
+            <div class="currency-symbol">₴</div>
+        </div>
+        
+        <button onclick="convert()">Перетворити в текст</button>
+        
+        <div class="result-box" id="result"></div>
+    </div>
+
+    <script>
+    function numberToWordsUAH(num) {
+        const hundreds = ['','сто','двісті','триста','чотириста','п\'ятсот','шістсот','сімсот','вісімсот','дев\'ятсот'];
+        const tens = ['','десять','двадцять','тридцять','сорок','п\'ятдесят','шістдесят','сімдесят','вісімдесят','дев\'яносто'];
+        const ones = {
+            common: ['','одна','дві','три','чотири','п\'ять','шість','сім','вісім','дев\'ять'],
+            masculine: ['','один','два','три','чотири','п\'ять','шість','сім','вісім','дев\'ять']
+        };
+        const teens = ['десять','одинадцять','дванадцять','тринадцять','чотирнадцять',
+                      'п\'ятнадцять','шістнадцять','сімнадцять','вісімнадцять','дев\'ятнадцять'];
+
+        function convertHundreds(n, gender = 'common') {
+            let res = '';
+            if (n >= 100) {
+                res += hundreds[Math.floor(n/100)] + ' ';
+                n %= 100;
+            }
+            if (n >= 10 && n <= 19) {
+                return res + teens[n - 10] + ' ';
+            }
+            if (n >= 20) {
+                res += tens[Math.floor(n/10)] + ' ';
+                n %= 10;
+            }
+            res += (gender === 'masculine' ? ones.masculine[n] : ones.common[n]) + ' ';
+            return res.replace(/\s+/g, ' ').trim();
+        }
+
+        function convertMillions(n) {
+            if (n === 0) return '';
+            const res = convertHundreds(n, 'masculine');
+            const last = n % 10;
+            if (last === 1 && (n % 100 !== 11)) return res + 'мільйон ';
+            if (last >= 2 && last <= 4 && (n % 100 < 10 || n % 100 >= 20)) return res + 'мільйони ';
+            return res + 'мільйонів ';
+        }
+
+        function convertThousands(n) {
+            if (n === 0) return '';
+            const res = convertHundreds(n);
+            const last = n % 10;
+            if (last === 1 && (n % 100 !== 11)) return res + 'тисяча ';
+            if (last >= 2 && last <= 4 && (n % 100 < 10 || n % 100 >= 20)) return res + 'тисячі ';
+            return res + 'тисяч ';
+        }
+
+        let intPart = Math.floor(num);
+        let fractionalPart = Math.round((num - intPart) * 100);
+        
+        if (fractionalPart >= 100) {
+            intPart += 1;
+            fractionalPart -= 100;
+        }
+
+        let result = '';
+        
+        if (intPart >= 1e6) {
+            result += convertMillions(Math.floor(intPart / 1e6));
+            intPart %= 1e6;
+        }
+        
+        if (intPart >= 1000) {
+            result += convertThousands(Math.floor(intPart / 1000));
+            intPart %= 1000;
+        }
+        
+        result += convertHundreds(intPart);
+
+        // Визначення форми гривні
+        const lastInt = intPart % 100;
+        let hryvniaForm = 'гривень';
+        if (lastInt % 10 === 1 && (lastInt < 10 || lastInt > 20)) hryvniaForm = 'гривня';
+        else if (lastInt % 10 >= 2 && lastInt % 10 <= 4 && (lastInt < 10 || lastInt > 20)) hryvniaForm = 'гривні';
+
+        // Визначення форми копійки
+        const lastFrac = fractionalPart % 100;
+        let kopiykaForm = 'копійок';
+        if (lastFrac % 10 === 1 && (lastFrac < 10 || lastFrac > 20)) kopiykaForm = 'копійка';
+        else if (lastFrac % 10 >= 2 && lastFrac % 10 <= 4 && (lastFrac < 10 || lastFrac > 20)) kopiykaForm = 'копійки';
+
+        const finalResult = `${result.trim()} ${hryvniaForm} ${fractionalPart.toString().padStart(2, '0')} ${kopiykaForm}`
+            .replace(/\s+/g, ' ')
+            .replace(/^./, m => m.toUpperCase());
+
+        // Копіювання в буфер обміну
+        navigator.clipboard.writeText(finalResult)
+            .then(() => {
+                const box = document.getElementById('result');
+                box.textContent = finalResult;
+                box.style.backgroundColor = '#e8f5e9';
+                setTimeout(() => box.style.backgroundColor = '', 1000);
+            })
+            .catch(err => console.error('Помилка копіювання:', err));
+
+        return finalResult;
+    }
+
+    function convert() {
+        const num = parseFloat(document.getElementById('amount').value);
+        const resultBox = document.getElementById('result');
+        
+        if (num > 15e6) {
+            showError('Максимальна сума - 15 мільйонів');
+            return;
+        }
+        
+        if (isNaN(num)) {
+            showError('Будь ласка, введіть коректну суму');
+            return;
+        }
+
+        resultBox.classList.remove('show');
+        setTimeout(() => {
+            const result = numberToWordsUAH(num);
+            resultBox.classList.add('show');
+        }, 300);
+    }
+
+    function showError(message) {
+        const resultBox = document.getElementById('result');
+        resultBox.textContent = message;
+        resultBox.style.color = '#e74c3c';
+        resultBox.classList.add('show');
+        setTimeout(() => resultBox.classList.remove('show'), 2000);
+    }
+
+    // Обробка Enter
+    document.getElementById('amount').addEventListener('keypress', e => {
+        if(e.key === 'Enter') convert();
+    });
+    </script>
+</body>
+</html> 
