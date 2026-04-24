@@ -2,168 +2,122 @@
     'use strict';
 
     // ============================================================
-    //  КОНСТАНТИ
+    // КОНФІГ
     // ============================================================
-    var STORE_KEY   = 'ua_tracker_data';   // основне сховище
-    var CHECK_KEY   = 'ua_tracker_check';  // час останньої перевірки
-    var PLUGIN_NAME = 'ua_tracker';
-    var TMDB_API    = 'https://api.themoviedb.org/3';
-    // TMDB public key (read-only, безпечно залишати у клієнтському коді)
+    var PLUGIN_TAG  = 'ua_series_tracker';
+    var STORE_KEY   = 'ua_tracker_v2';
     var TMDB_KEY    = '4ef0d7355d9ffb5151e987764708ce96';
-    var CHECK_INTERVAL = 60 * 60 * 1000;   // перевіряти не частіше 1 разу на годину
+    var TMDB_BASE   = 'https://api.themoviedb.org/3';
+    var IMG_BASE    = 'https://image.tmdb.org/t/p/w92';
 
     // ============================================================
-    //  СХОВИЩЕ
+    // СХОВИЩЕ
     // ============================================================
-    var Storage = {
+    var Store = {
         get: function () {
-            try {
-                return JSON.parse(Lampa.Storage.get(STORE_KEY, '{}'));
-            } catch (e) { return {}; }
+            var raw = Lampa.Storage.get(STORE_KEY, 'false');
+            try { return JSON.parse(raw) || {}; } catch(e) { return {}; }
         },
-        save: function (data) {
+        set: function (data) {
             Lampa.Storage.set(STORE_KEY, JSON.stringify(data));
+        },
+        getShow: function (id) {
+            return this.get()[String(id)] || null;
+        },
+        setShow: function (show) {
+            var data = this.get();
+            data[String(show.id)] = show;
+            this.set(data);
+        },
+        removeShow: function (id) {
+            var data = this.get();
+            delete data[String(id)];
+            this.set(data);
+        },
+        all: function () {
+            var data = this.get();
+            return Object.keys(data).map(function(k){ return data[k]; });
         }
     };
 
-    // Структура об'єкта серіалу у сховищі:
-    // {
-    //   [tmdb_id]: {
-    //     id: 12345,
-    //     title: "Назва",
-    //     poster: "/path.jpg",
-    //     voice: "Kубик в Кубі",         // улюблена озвучка
-    //     watched: { "s1e1": true, ... }, // переглянуті серії
-    //     unwatched: [                    // нові непереглянуті
-    //       { season:2, episode:5, title:"...", air_date:"..." }
-    //     ],
-    //     last_season: 1,
-    //     last_episode: 4,
-    //     total_seasons: 3
-    //   }
-    // }
-
     // ============================================================
-    //  ДОПОМІЖНІ ФУНКЦІЇ
+    // TMDB
     // ============================================================
-    function epKey(season, episode) {
-        return 's' + season + 'e' + episode;
+    function tmdbGet(path, callback, fail) {
+        var sep = path.indexOf('?') >= 0 ? '&' : '?';
+        var url = TMDB_BASE + path + sep + 'api_key=' + TMDB_KEY + '&language=uk-UA';
+        $.ajax({
+            url: url,
+            type: 'GET',
+            dataType: 'json',
+            success: callback,
+            error: fail || function(){}
+        });
     }
 
-    function getShow(id) {
-        var data = Storage.get();
-        return data[id] || null;
-    }
-
-    function saveShow(show) {
-        var data = Storage.get();
-        data[show.id] = show;
-        Storage.save(data);
-    }
-
-    function getAllShows() {
-        var data = Storage.get();
-        return Object.values(data);
-    }
-
-    // ============================================================
-    //  TMDB: отримати список серій після вказаного епізоду
-    // ============================================================
-    function fetchNewEpisodes(show, callback) {
-        var url = TMDB_API + '/tv/' + show.id
-            + '?api_key=' + TMDB_KEY
-            + '&language=uk-UA';
-
-        Lampa.Reguest.native(url, function (data) {
-            if (!data || !data.seasons) return callback([]);
-
-            var newEps  = [];
-            var today   = new Date().toISOString().split('T')[0];
-            var seasons = data.seasons.filter(function (s) {
+    function fetchUnwatched(show, callback) {
+        var today = new Date().toISOString().slice(0, 10);
+        tmdbGet('/tv/' + show.id, function (info) {
+            var seasons = (info.seasons || []).filter(function(s){
                 return s.season_number > 0;
             });
+            if (!seasons.length) return callback([]);
 
-            var pending = seasons.length;
-            if (!pending) return callback([]);
+            var results = [];
+            var left    = seasons.length;
 
             seasons.forEach(function (s) {
-                var sUrl = TMDB_API + '/tv/' + show.id
-                    + '/season/' + s.season_number
-                    + '?api_key=' + TMDB_KEY
-                    + '&language=uk-UA';
-
-                Lampa.Reguest.native(sUrl, function (sData) {
-                    if (sData && sData.episodes) {
-                        sData.episodes.forEach(function (ep) {
-                            // серія вже вийшла
-                            if (!ep.air_date || ep.air_date > today) return;
-                            var key = epKey(ep.season_number, ep.episode_number);
-                            var isWatched = show.watched && show.watched[key];
-                            // пропускаємо переглянуті
-                            if (isWatched) return;
-                            // перевіряємо, що серія новіша за останню переглянуту
-                            var afterLastWatched =
-                                ep.season_number > (show.last_season || 0) ||
-                                (ep.season_number === (show.last_season || 0) &&
-                                 ep.episode_number > (show.last_episode || 0));
-                            if (afterLastWatched) {
-                                newEps.push({
-                                    season:  ep.season_number,
-                                    episode: ep.episode_number,
-                                    title:   ep.name || ('Серія ' + ep.episode_number),
-                                    air_date: ep.air_date,
-                                    key:     key
-                                });
-                            }
-                        });
-                    }
-                    pending--;
-                    if (pending === 0) callback(newEps);
-                }, function () {
-                    pending--;
-                    if (pending === 0) callback(newEps);
-                });
+                tmdbGet('/tv/' + show.id + '/season/' + s.season_number, function (sd) {
+                    (sd.episodes || []).forEach(function (ep) {
+                        if (!ep.air_date || ep.air_date > today) return;
+                        var key = 's' + ep.season_number + 'e' + ep.episode_number;
+                        if (show.watched && show.watched[key]) return;
+                        // тільки серії після останньої переглянутої
+                        var sn = ep.season_number, en = ep.episode_number;
+                        var ls = show.last_season || 0, le = show.last_episode || 0;
+                        var isNew = (sn > ls) || (sn === ls && en > le);
+                        if (isNew) {
+                            results.push({
+                                key:     key,
+                                season:  sn,
+                                episode: en,
+                                title:   ep.name || ('Серія ' + en),
+                                date:    ep.air_date
+                            });
+                        }
+                    });
+                    if (--left === 0) callback(results);
+                }, function(){ if (--left === 0) callback(results); });
             });
-        }, function () { callback([]); });
+        }, function(){ callback([]); });
     }
 
     // ============================================================
-    //  ПЕРЕВІРКА НОВИХ СЕРІЙ ДЛЯ ВСІХ СЕРІАЛІВ
+    // ПЕРЕВІРКА ВСІХ СЕРІАЛІВ
     // ============================================================
-    function checkAllShows(silent) {
-        var now = Date.now();
-        var lastCheck = parseInt(Lampa.Storage.get(CHECK_KEY, '0'), 10);
-        if (!silent && now - lastCheck < CHECK_INTERVAL) return;
-        Lampa.Storage.set(CHECK_KEY, String(now));
-
-        var shows = getAllShows();
-        if (!shows.length) return;
-
-        var totalNew = 0;
-
+    function checkAll(notify) {
+        var shows = Store.all();
         shows.forEach(function (show) {
-            fetchNewEpisodes(show, function (newEps) {
-                if (!newEps.length) return;
-
-                // оновлюємо список непереглянутих (без дублів)
-                var existing = (show.unwatched || []).map(function (e) { return e.key; });
+            fetchUnwatched(show, function (eps) {
+                if (!eps.length) return;
+                var stored = Store.getShow(show.id);
+                if (!stored) return;
+                var existing = (stored.unwatched || []).map(function(e){ return e.key; });
                 var added = 0;
-                newEps.forEach(function (ep) {
-                    if (existing.indexOf(ep.key) === -1) {
-                        show.unwatched = show.unwatched || [];
-                        show.unwatched.push(ep);
+                eps.forEach(function (ep) {
+                    if (existing.indexOf(ep.key) < 0) {
+                        stored.unwatched = stored.unwatched || [];
+                        stored.unwatched.push(ep);
                         added++;
-                        totalNew++;
                     }
                 });
-
-                if (added > 0) {
-                    saveShow(show);
-                    if (!silent) {
+                if (added) {
+                    Store.setShow(stored);
+                    if (notify) {
                         Lampa.Noty.show(
-                            '📺 ' + show.title + ': ' + added +
-                            ' нов' + (added === 1 ? 'а серія' : 'их серій') +
-                            (show.voice ? ' [' + show.voice + ']' : '')
+                            '📺 ' + stored.title + ': +' + added + ' ' +
+                            (added === 1 ? 'нова серія' : 'нових серій') +
+                            (stored.voice ? '  🎙 ' + stored.voice : '')
                         );
                     }
                 }
@@ -172,275 +126,231 @@
     }
 
     // ============================================================
-    //  ПЕРЕХОПЛЕННЯ ПРОГРАВАЧА
+    // ВІДМІТИТИ ПЕРЕГЛЯНУТОЮ
+    // ============================================================
+    function markWatched(showId, season, episode, voice) {
+        var show = Store.getShow(showId);
+        if (!show) return;
+        var key = 's' + season + 'e' + episode;
+        show.watched       = show.watched || {};
+        show.watched[key]  = true;
+        show.last_season   = Math.max(show.last_season  || 0, season);
+        show.last_episode  = (season === show.last_season) 
+                              ? Math.max(show.last_episode || 0, episode) 
+                              : episode;
+        if (voice) show.voice = voice;
+        show.unwatched = (show.unwatched || []).filter(function(e){ return e.key !== key; });
+        Store.setShow(show);
+    }
+
+    // ============================================================
+    // ПЕРЕХОПЛЕННЯ ПЛЕЄРА
     // ============================================================
     Lampa.Listener.follow('player', function (e) {
-
-        // ── Плеєр запустився ──────────────────────────────────
         if (e.type === 'start') {
-            // Lampa передає об'єкт картки через e.object або e.data
-            var card = (e.object && e.object.movie)
-                    || (e.data && e.data.movie)
-                    || e.object
-                    || null;
+            var obj = e.object || {};
+            var card = obj.movie || obj.card || {};
+            if (!card.id) return;
+            // серіал визначаємо за наявністю first_air_date або media_type
+            var isTv = card.media_type === 'tv' ||
+                       card.first_air_date !== undefined ||
+                       typeof obj.season !== 'undefined';
+            if (!isTv) return;
 
-            if (!card || !card.id || card.media_type === 'movie') return;
-
-            // Зберігаємо поточний контекст відтворення
-            window._ua_tracker_current = {
+            window._tracker_ctx = {
                 id:      card.id,
-                title:   card.name || card.title || 'Серіал',
+                title:   card.name || card.title || '',
                 poster:  card.poster_path || '',
-                season:  parseInt(e.object && e.object.season,  10) || 0,
-                episode: parseInt(e.object && e.object.episode, 10) || 0,
-                voice:   (e.object && e.object.voice)
-                      || (e.object && e.object.translation)
-                      || ''
+                season:  parseInt(obj.season,  10) || 0,
+                episode: parseInt(obj.episode, 10) || 0,
+                voice:   obj.voice || obj.translation || obj.t || ''
             };
         }
 
-        // ── Плеєр закрився або відео закінчилось ─────────────
-        if (e.type === 'destroy' || e.type === 'end') {
-            var ctx = window._ua_tracker_current;
-            if (!ctx || !ctx.id || !ctx.season) return;
+        if (e.type === 'end' || e.type === 'destroy') {
+            var ctx = window._tracker_ctx;
+            if (!ctx || !ctx.season) { window._tracker_ctx = null; return; }
 
-            var percent = 0;
+            // перевіряємо % перегляду
+            var pct = 0;
             try {
-                var player = Lampa.Player.video();
-                if (player && player.duration) {
-                    percent = (player.currentTime / player.duration) * 100;
-                }
-            } catch (err) {}
+                var v = document.querySelector('video');
+                if (v && v.duration) pct = v.currentTime / v.duration * 100;
+            } catch(_){}
 
-            // якщо переглянуто >85% — відмічаємо як переглянуте
-            if (percent >= 85 || e.type === 'end') {
-                markWatched(ctx);
+            if (pct >= 80 || e.type === 'end') {
+                // додаємо серіал якщо його ще немає
+                if (!Store.getShow(ctx.id)) {
+                    Store.setShow({
+                        id: ctx.id, title: ctx.title, poster: ctx.poster,
+                        voice: ctx.voice, watched: {}, unwatched: [],
+                        last_season: 0, last_episode: 0
+                    });
+                }
+                markWatched(ctx.id, ctx.season, ctx.episode, ctx.voice);
             }
-
-            window._ua_tracker_current = null;
-        }
-
-        // ── Прогрес ───────────────────────────────────────────
-        if (e.type === 'timeupdate') {
-            var ctx2 = window._ua_tracker_current;
-            if (!ctx2) return;
-            try {
-                var vid = Lampa.Player.video();
-                if (vid && vid.duration && (vid.currentTime / vid.duration) >= 0.85) {
-                    markWatched(ctx2);
-                    window._ua_tracker_current = null; // щоб не спрацювало двічі
-                }
-            } catch (err2) {}
+            window._tracker_ctx = null;
         }
     });
 
-    function markWatched(ctx) {
-        var data  = Storage.get();
-        var show  = data[ctx.id] || {
-            id:         ctx.id,
-            title:      ctx.title,
-            poster:     ctx.poster,
-            voice:      ctx.voice || '',
-            watched:    {},
-            unwatched:  [],
-            last_season:  0,
-            last_episode: 0
-        };
-
-        // оновлюємо озвучку якщо є нова
-        if (ctx.voice) show.voice = ctx.voice;
-
-        var key = epKey(ctx.season, ctx.episode);
-        show.watched        = show.watched || {};
-        show.watched[key]   = true;
-        show.last_season    = ctx.season;
-        show.last_episode   = ctx.episode;
-
-        // видаляємо з непереглянутих
-        show.unwatched = (show.unwatched || []).filter(function (ep) {
-            return ep.key !== key;
-        });
-
-        data[ctx.id] = show;
-        Storage.save(data);
+    // ============================================================
+    // UI — СТИЛІ
+    // ============================================================
+    function injectStyles() {
+        if (document.getElementById('ua-tracker-css')) return;
+        var s = document.createElement('style');
+        s.id = 'ua-tracker-css';
+        s.textContent = '\
+.trk-wrap{padding:1.5em 2em;color:#fff;overflow-y:auto;height:100%;box-sizing:border-box}\
+.trk-h1{font-size:1.7em;margin-bottom:.3em}\
+.trk-sub{color:#aaa;font-size:.9em;margin-bottom:1.5em}\
+.trk-btn{display:inline-block;background:#e5a00d;color:#000;border:none;\
+  padding:.45em 1.4em;border-radius:.4em;cursor:pointer;font-size:.95em;\
+  margin-right:.5em;margin-bottom:1.2em;font-weight:600}\
+.trk-btn:focus,.trk-btn.focus{outline:2px solid #fff}\
+.trk-empty{text-align:center;margin-top:4em;color:#888;font-size:1.1em}\
+.trk-show{margin-bottom:2em;border-left:3px solid #e5a00d;padding-left:1em}\
+.trk-show-head{display:flex;align-items:center;gap:.7em;margin-bottom:.5em}\
+.trk-show-img{height:3em;border-radius:.3em;flex-shrink:0}\
+.trk-show-name{font-size:1.1em;font-weight:600}\
+.trk-show-voice{font-size:.8em;color:#e5a00d;margin-top:.15em}\
+.trk-ep{display:flex;align-items:center;background:rgba(255,255,255,.06);\
+  border-radius:.4em;padding:.45em .9em;margin-bottom:.35em;gap:.7em}\
+.trk-ep:focus,.trk-ep.focus{background:rgba(255,255,255,.18);outline:none}\
+.trk-ep-num{color:#e5a00d;font-weight:700;min-width:5em;font-size:.95em}\
+.trk-ep-title{flex:1;font-size:.95em}\
+.trk-ep-date{color:#777;font-size:.8em;white-space:nowrap}\
+.trk-ep-ok{background:none;border:1px solid #555;color:#5f5;padding:.2em .6em;\
+  border-radius:.3em;cursor:pointer;font-size:.85em;white-space:nowrap}\
+.trk-ep-ok:hover{background:#5f5;color:#000}\
+';
+        document.head.appendChild(s);
     }
 
     // ============================================================
-    //  КОМПОНЕНТ — ВКЛАДКА "ТРЕКЕР"
+    // UI — КОМПОНЕНТ ТРЕКЕРА
     // ============================================================
-    function TrackerComponent(object) {
-        var _this    = this;
-        this.activity = object;
-        this.html     = $('<div class="tracker-wrap"></div>');
-        this.loading  = false;
-
-        // ── Стилі ──────────────────────────────────────────────
-        if (!document.getElementById('ua-tracker-style')) {
-            var style = document.createElement('style');
-            style.id  = 'ua-tracker-style';
-            style.textContent = [
-                '.tracker-wrap { padding: 2em; overflow-y: auto; height: 100%; }',
-                '.tracker-header { font-size: 1.6em; margin-bottom: 1em; color: #fff; }',
-                '.tracker-empty  { color: #aaa; font-size: 1.2em; text-align:center; margin-top:3em; }',
-                '.tracker-show   { display:flex; flex-direction:column; margin-bottom:2em; }',
-                '.tracker-show-title { font-size:1.2em; color:#e5a00d; margin-bottom:.4em; display:flex; align-items:center; gap:.6em; }',
-                '.tracker-voice  { font-size:.85em; color:#aaa; }',
-                '.tracker-ep     { display:flex; align-items:center; background:rgba(255,255,255,.06);',
-                '                  border-radius:.5em; padding:.5em 1em; margin-bottom:.4em;',
-                '                  cursor:pointer; transition:background .2s; outline:none; }',
-                '.tracker-ep:hover, .tracker-ep.focus { background:rgba(255,255,255,.18); }',
-                '.tracker-ep-info { flex:1; color:#fff; font-size:1em; }',
-                '.tracker-ep-date { color:#888; font-size:.85em; margin-left:.5em; }',
-                '.tracker-ep-del  { background:transparent; border:none; color:#e55; font-size:1.2em;',
-                '                   cursor:pointer; padding:.2em .5em; }',
-                '.tracker-btn     { display:inline-block; background:#e5a00d; color:#000; border:none;',
-                '                   padding:.5em 1.5em; border-radius:.5em; cursor:pointer;',
-                '                   font-size:1em; margin:.5em .5em 1.5em 0; }',
-                '.tracker-btn:hover { background:#ffb829; }'
-            ].join('\n');
-            document.head.appendChild(style);
-        }
+    function TrackerPage(object) {
+        this._object = object;
+        this._wrap   = $('<div class="trk-wrap"></div>');
     }
 
-    TrackerComponent.prototype = {
-        // ── Lifecycle ─────────────────────────────────────────
-        create: function () { this.render(); },
+    TrackerPage.prototype = {
+        // --- обов'язкові методи Lampa компонента ---
+        create: function () {
+            injectStyles();
+            this._draw();
+            return this._wrap;
+        },
+        render: function () { return this._wrap; },
         start:  function () {
-            Lampa.Controller.add(PLUGIN_NAME, {
+            var wrap = this._wrap;
+            Lampa.Controller.add(PLUGIN_TAG, {
                 toggle: function () {
-                    Lampa.Controller.collectionSet(this.html);
-                    Lampa.Controller.collectionFocus(false, this.html);
-                }.bind(this),
-                back: function () { Lampa.Activity.backward(); }
+                    Lampa.Controller.collectionSet(wrap);
+                    Lampa.Controller.collectionFocus(false, wrap);
+                },
+                up:    function () { Lampa.Controller.collectionUp(); },
+                down:  function () { Lampa.Controller.collectionDown(); },
+                back:  function () { Lampa.Activity.backward(); }
             });
-            Lampa.Controller.toggle(PLUGIN_NAME);
+            Lampa.Controller.toggle(PLUGIN_TAG);
         },
         pause:   function () {},
         stop:    function () {},
-        destroy: function () { this.html.remove(); },
-        render:  function () { return this.html; },
+        destroy: function () { this._wrap.remove(); },
 
-        // ── Відмальовка ───────────────────────────────────────
-        render: function () {
-            var _this = this;
-            this.html.empty();
+        // --- відмальовка ---
+        _draw: function () {
+            var self = this;
+            var wrap = this._wrap.empty();
 
-            var header = $('<div class="tracker-header">📺 Трекер серіалів</div>');
-            this.html.append(header);
+            wrap.append('<div class="trk-h1">📺 Трекер серіалів</div>');
+            wrap.append('<div class="trk-sub">Всі непереглянуті серії в одному місці</div>');
 
-            // Кнопка "Перевірити нові серії"
-            var refreshBtn = $('<button class="tracker-btn">🔄 Перевірити нові серії</button>');
-            refreshBtn.on('click', function () {
-                Lampa.Noty.show('Перевіряю нові серії…');
-                checkAllShows(true);
-                setTimeout(function () { _this.render(); }, 3000);
+            // кнопка "Перевірити"
+            var btnCheck = $('<button class="trk-btn selector">🔄 Перевірити нові серії</button>');
+            btnCheck.on('click hover:enter', function () {
+                Lampa.Noty.show('Перевіряю…');
+                checkAll(true);
+                setTimeout(function () { self._draw(); }, 4000);
             });
-            this.html.append(refreshBtn);
+            wrap.append(btnCheck);
 
-            var shows = getAllShows().filter(function (s) {
-                return s.unwatched && s.unwatched.length > 0;
+            var shows = Store.all().filter(function(s){
+                return s.unwatched && s.unwatched.length;
             });
 
             if (!shows.length) {
-                this.html.append('<div class="tracker-empty">🎉 Немає непереглянутих серій!</div>');
-                return this.html;
+                wrap.append('<div class="trk-empty">🎉 Непереглянутих серій немає!<br><span style="font-size:.85em;color:#666">Натисніть «Стежити» на сторінці серіалу</span></div>');
+                return;
             }
 
             shows.forEach(function (show) {
-                var showEl = $('<div class="tracker-show"></div>');
+                var block = $('<div class="trk-show"></div>');
 
-                var titleEl = $(
-                    '<div class="tracker-show-title">' +
-                    (show.poster
-                        ? '<img src="https://image.tmdb.org/t/p/w92' + show.poster + '" style="height:2.5em;border-radius:.3em;">'
-                        : '') +
-                    '<span>' + show.title + '</span>' +
-                    (show.voice
-                        ? '<span class="tracker-voice">🎙 ' + show.voice + '</span>'
-                        : '') +
-                    '</div>'
-                );
-                showEl.append(titleEl);
+                // заголовок серіалу
+                var head = $('<div class="trk-show-head"></div>');
+                if (show.poster) {
+                    head.append('<img class="trk-show-img" src="' + IMG_BASE + show.poster + '">');
+                }
+                var info = $('<div></div>');
+                info.append('<div class="trk-show-name">' + Lampa.Utils.escapeHtml(show.title) + '</div>');
+                if (show.voice) {
+                    info.append('<div class="trk-show-voice">🎙 ' + Lampa.Utils.escapeHtml(show.voice) + '</div>');
+                }
+                head.append(info);
+                block.append(head);
 
-                // Кнопка "Відкрити серіал"
-                var openBtn = $('<button class="tracker-btn" style="font-size:.85em;padding:.3em 1em">▶ Відкрити</button>');
-                openBtn.on('click', function () {
-                    Lampa.Activity.push({
-                        url:        '',
-                        title:      show.title,
-                        component:  'full',
-                        id:         show.id,
-                        card:       { id: show.id, media_type: 'tv' },
-                        page:       1
-                    });
-                });
-                showEl.append(openBtn);
-
-                // Список непереглянутих серій (сортуємо по сезону і епізоду)
-                var sorted = (show.unwatched || []).slice().sort(function (a, b) {
-                    return a.season !== b.season
-                        ? a.season - b.season
-                        : a.episode - b.episode;
+                // список серій
+                var sorted = (show.unwatched || []).slice().sort(function(a,b){
+                    return a.season !== b.season ? a.season - b.season : a.episode - b.episode;
                 });
 
                 sorted.forEach(function (ep) {
-                    var epEl = $(
-                        '<div class="tracker-ep selector" tabindex="0">' +
-                        '<span class="tracker-ep-info">' +
-                        'S' + String(ep.season).padStart(2,'0') +
-                        'E' + String(ep.episode).padStart(2,'0') +
-                        ' — ' + ep.title +
-                        '<span class="tracker-ep-date">' + (ep.air_date || '') + '</span>' +
-                        '</span>' +
-                        '<button class="tracker-ep-del" title="Відмітити переглянутим">✓</button>' +
+                    var pad = function(n){ return String(n).padStart(2,'0'); };
+                    var row = $(
+                        '<div class="trk-ep selector" tabindex="0">' +
+                        '<span class="trk-ep-num">S' + pad(ep.season) + 'E' + pad(ep.episode) + '</span>' +
+                        '<span class="trk-ep-title">' + Lampa.Utils.escapeHtml(ep.title) + '</span>' +
+                        '<span class="trk-ep-date">' + (ep.date || '') + '</span>' +
+                        '<button class="trk-ep-ok selector">✓ Переглянуто</button>' +
                         '</div>'
                     );
 
-                    // ✓ Відмітити вручну як переглянуте
-                    epEl.find('.tracker-ep-del').on('click', function (e) {
-                        e.stopPropagation();
-                        var s = Storage.get();
-                        var sh = s[show.id];
-                        if (sh) {
-                            sh.watched       = sh.watched || {};
-                            sh.watched[ep.key] = true;
-                            sh.unwatched = sh.unwatched.filter(function (u) {
-                                return u.key !== ep.key;
-                            });
-                            Storage.save(s);
-                        }
-                        epEl.remove();
+                    row.find('.trk-ep-ok').on('click hover:enter', function (ev) {
+                        ev.stopPropagation();
+                        markWatched(show.id, ep.season, ep.episode, show.voice);
+                        row.fadeOut(200, function(){ row.remove(); });
                         Lampa.Noty.show('✓ Відмічено як переглянуте');
                     });
 
-                    showEl.append(epEl);
+                    block.append(row);
                 });
 
-                _this.html.append(showEl);
+                wrap.append(block);
             });
-
-            return this.html;
         }
     };
 
     // ============================================================
-    //  РЕЄСТРАЦІЯ КОМПОНЕНТА
+    // РЕЄСТРАЦІЯ КОМПОНЕНТА
     // ============================================================
-    Lampa.Component.add(PLUGIN_NAME, TrackerComponent);
+    Lampa.Component.add(PLUGIN_TAG, TrackerPage);
 
     // ============================================================
-    //  КНОПКА В ГОЛОВНОМУ МЕНЮ
+    // КНОПКА В МЕНЮ
     // ============================================================
-    function addMenuButton() {
+    function addMenuBtn() {
         Lampa.Listener.follow('menu', function (e) {
             if (e.type !== 'build') return;
 
-            var count = getAllShows().reduce(function (acc, s) {
-                return acc + ((s.unwatched && s.unwatched.length) || 0);
+            var total = Store.all().reduce(function(n, s){
+                return n + ((s.unwatched && s.unwatched.length) || 0);
             }, 0);
 
-            var badge = count > 0
-                ? ' <span style="background:#e55;color:#fff;border-radius:1em;padding:.1em .5em;font-size:.75em;">' + count + '</span>'
+            var badge = total
+                ? ' <sup style="background:#e55;border-radius:1em;padding:.05em .45em;font-size:.7em;">' + total + '</sup>'
                 : '';
 
             var item = $(
@@ -453,94 +363,96 @@
             item.on('hover:enter', function () {
                 Lampa.Activity.push({
                     title:     'Трекер серіалів',
-                    component: PLUGIN_NAME,
+                    component: PLUGIN_TAG,
                     page:      1
                 });
             });
 
-            e.render.find('.menu__list').eq(0).append(item);
+            // вставляємо після першого пункту меню
+            e.render.find('.menu__list').first().append(item);
         });
     }
 
     // ============================================================
-    //  КНОПКА "СТЕЖИТИ" НА СТОРІНЦІ СЕРІАЛУ
+    // КНОПКА "СТЕЖИТИ" НА СТОРІНЦІ СЕРІАЛУ
     // ============================================================
     Lampa.Listener.follow('full', function (e) {
         if (e.type !== 'complite') return;
 
-        var card = e.data && e.data.movie;
-        if (!card || card.media_type === 'movie' || card.first_air_date === undefined) return;
-        if (!card.number_of_seasons) return; // тільки серіали
+        var movie = (e.data && e.data.movie) || e.movie || {};
+        // тільки серіали
+        if (!movie.id || movie.media_type === 'movie') return;
+        if (!movie.first_air_date && !movie.number_of_seasons) return;
 
-        var id   = card.id;
-        var data = Storage.get();
+        var id      = movie.id;
+        var tracked = !!Store.getShow(id);
 
-        // Кнопка "Стежити / Не стежити"
-        var isTracked = !!data[id];
-        var btnText   = isTracked ? '📺 Відстежується' : '+ Стежити';
-        var btn       = $('<button class="full-start__button selector" style="margin-top:.5em">' + btnText + '</button>');
+        var btn = $(
+            '<button class="full-start__button selector" style="margin-top:.6em;background:' +
+            (tracked ? '#27ae60' : '#2980b9') + '">' +
+            (tracked ? '📺 Відстежується' : '＋ Стежити') +
+            '</button>'
+        );
 
         btn.on('hover:enter click', function () {
-            var d = Storage.get();
-            if (d[id]) {
-                // зупинити відстеження
-                delete d[id];
-                Storage.save(d);
-                btn.text('+ Стежити');
+            if (Store.getShow(id)) {
+                Store.removeShow(id);
+                btn.text('＋ Стежити').css('background','#2980b9');
                 Lampa.Noty.show('Серіал видалено з відстеження');
             } else {
-                // додати до відстеження
-                d[id] = {
-                    id:          id,
-                    title:       card.name || card.title,
-                    poster:      card.poster_path || '',
-                    voice:       '',
-                    watched:     {},
-                    unwatched:   [],
+                var show = {
+                    id:           id,
+                    title:        movie.name || movie.title || String(id),
+                    poster:       movie.poster_path || '',
+                    voice:        '',
+                    watched:      {},
+                    unwatched:    [],
                     last_season:  0,
                     last_episode: 0
                 };
-                Storage.save(d);
-                btn.text('📺 Відстежується');
-                Lampa.Noty.show('Серіал додано до відстеження!');
-                // одразу перевіряємо нові серії
-                fetchNewEpisodes(d[id], function (newEps) {
-                    if (!newEps.length) return;
-                    var s = Storage.get();
-                    if (!s[id]) return;
-                    s[id].unwatched = newEps;
-                    Storage.save(s);
-                    Lampa.Noty.show('📺 Знайдено ' + newEps.length + ' непереглянутих серій!');
+                Store.setShow(show);
+                btn.text('📺 Відстежується').css('background','#27ae60');
+                Lampa.Noty.show('Додано! Шукаю нові серії…');
+                fetchUnwatched(show, function (eps) {
+                    if (!eps.length) {
+                        Lampa.Noty.show('Нових серій поки немає');
+                        return;
+                    }
+                    var s = Store.getShow(id);
+                    if (!s) return;
+                    s.unwatched = eps;
+                    Store.setShow(s);
+                    Lampa.Noty.show('📺 Знайдено ' + eps.length + ' непереглянутих серій!');
                 });
             }
         });
 
-        // Додаємо кнопку під основні кнопки серіалу
-        e.render.find('.full-start__buttons, .full-start-new__buttons')
-            .eq(0).append(btn);
+        // вставляємо кнопку у блок дій серіалу
+        var btns = e.render
+            .find('.full-start__buttons, .full-start-new__buttons, .full-start__body')
+            .first();
+        if (btns.length) btns.append(btn);
     });
 
     // ============================================================
-    //  ЗАПУСК
+    // СТАРТ
     // ============================================================
     function init() {
-        addMenuButton();
-        // Перевіряємо нові серії через 5 сек після завантаження
-        setTimeout(function () {
-            checkAllShows(false);
-        }, 5000);
+        addMenuBtn();
+        // перевірка нових серій через 8 сек після запуску
+        setTimeout(function () { checkAll(true); }, 8000);
     }
 
-    // Чекаємо поки Lampa повністю завантажиться
-    if (window.Lampa && Lampa.Listener) {
+    // Чекаємо готовності Lampa
+    if (window.Lampa && Lampa.Listener && Lampa.Storage) {
         init();
     } else {
-        var _interval = setInterval(function () {
-            if (window.Lampa && Lampa.Listener) {
-                clearInterval(_interval);
+        var _t = setInterval(function () {
+            if (window.Lampa && Lampa.Listener && Lampa.Storage) {
+                clearInterval(_t);
                 init();
             }
-        }, 300);
+        }, 250);
     }
 
 })();
