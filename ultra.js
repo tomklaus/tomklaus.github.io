@@ -1,180 +1,1401 @@
-(function () {
-'use strict';
+!(function () {
+  "use strict";
+  const e = "EasyTorrent",
+    t = "1.1.0 Beta",
+    n =
+      '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor"/></svg>',
+    r = "https://wozuelafumpzgvllcjne.supabase.co",
+    o =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvenVlbGFmdW1wemd2bGxjam5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5Mjg1MDgsImV4cCI6MjA4MjUwNDUwOH0.ODnHlq_P-1wr_D6Jwaba1mLXIVuGBnnUZsrHI8Twdug",
+    s = "https://darkestclouds.github.io/plugins/easytorrent/";
+  let a = [],
+    i = null;
 
-/* ================== STYLE ================== */
+  // Оновлена конфігурація з вашими значеннями
+  const l = {
+    version: "2.0",
+    generated: "2026-01-01T21:21:24.718Z",
+    device: {
+      type: "tv_4k",
+      supported_hdr: ["hdr10", "hdr10plus", "dolby_vision"],
+      supported_audio: ["stereo"],
+    },
+    network: { speed: "very_fast", stability: "stable" },
+    parameter_priority: [
+      "audio_track",
+      "resolution",
+      "availability",
+      "bitrate",
+      "hdr",
+      "audio_quality",
+    ],
+    audio_track_priority: [
+      "Дубляж UKR",
+      "UKR НеЗупиняйПродакшн",
+      "Дубляж LeDoyen"
+    ],
+    preferences: { min_seeds: 2, recommendation_count: 3 },
+    scoring_rules: {
+      weights: {
+        audio_track: 100,
+        resolution: 85,
+        availability: 70,
+        bitrate: 55,
+        hdr: 40,
+        audio_quality: 25,
+      },
+      resolution: { 480: -60, 720: -30, 1080: 17, 1440: 42.5, 2160: 85 },
+      hdr: { dolby_vision: 40, hdr10plus: 32, hdr10: 32, sdr: -16 },
+      bitrate_bonus: {
+        thresholds: [
+          { min: 0, max: 15, bonus: 0 },
+          { min: 15, max: 30, bonus: 15 },
+          { min: 30, max: 60, bonus: 30 },
+          { min: 60, max: 999, bonus: 35 },
+        ],
+        weight: 0.55,
+      },
+      availability: { weight: 0.7, min_seeds: 2 },
+      audio_quality: { weight: 0.25 },
+      audio_track: { weight: 1 },
+    },
+  };
 
-function injectStyles(){
-    if(document.getElementById('ultra-style')) return;
+  let d = l;
+  
+  // Додана українська локалізація
+  const c = {
+    easytorrent_title: {
+      ru: "Рекомендации торрентов",
+      uk: "Рекомендації торрентів",
+      en: "Torrent Recommendations",
+    },
+    easytorrent_desc: {
+      ru: "Показывать рекомендуемые торренты на основе качества, HDR и озвучки",
+      uk: "Показувати рекомендовані торренти на основі якості, HDR та озвучки",
+      en: "Show recommended torrents based on quality, HDR and audio",
+    },
+    recommended_section_title: { ru: "Рекомендуемые", uk: "Рекомендовані", en: "Recommended" },
+    show_scores: { ru: "Показывать оценки", uk: "Показувати бали", en: "Show scores" },
+    show_scores_desc: {
+      ru: "Отображать оценку качества торрента",
+      uk: "Відображати оцінку якості торрента",
+      en: "Display torrent quality score",
+    },
+    ideal_badge: { ru: "Идеальный", uk: "Ідеально", en: "Ideal" },
+    recommended_badge: { ru: "Рекомендуется", uk: "Рекомендовано", en: "Recommended" },
+    config_json: { ru: "Конфигурация (JSON)", uk: "Конфігурація (JSON)", en: "Configuration (JSON)" },
+    config_json_desc: {
+      ru: "Нажмите для просмотра или изменения настроек",
+      uk: "Натисніть для перегляду або зміни налаштувань",
+      en: "Click to view or change settings",
+    },
+    config_view: { ru: "Просмотреть параметры", uk: "Переглянути параметри", en: "View parameters" },
+    config_edit: { ru: "Вставить JSON", uk: "Вставити JSON", en: "Paste JSON" },
+    config_reset: { ru: "Сбросить к заводским", uk: "Скинути до заводських", en: "Reset to defaults" },
+    config_error: {
+      ru: "Ошибка: Неверный формат JSON",
+      uk: "Помилка: Невірний формат JSON",
+      en: "Error: Invalid JSON format",
+    },
+  };
 
-    var style = document.createElement('style');
-    style.id = 'ultra-style';
-    style.textContent = `
-    .button--ultra{
-        background: linear-gradient(135deg,#0057B7,#FFD700) !important;
-        color:#fff !important;
-        font-weight:700;
-        border-radius:12px;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        height:3.5em;
-        width:100%;
-        margin-bottom:10px;
-        cursor:pointer;
+  function p(e) {
+    const t = Lampa.Storage.get("language", "ru");
+    return (c[e] && (c[e][t] || c[e].uk || c[e].ru)) || e;
+  }
+
+  function u(e) {
+    const t = "string" == typeof e ? e : JSON.stringify(e);
+    Lampa.Storage.set("easytorrent_config_json", t);
+    try {
+      d = JSON.parse(t);
+    } catch (e) {
+      d = l;
     }
+  }
 
-    .ultra-panel{
-        position:fixed;
-        right:20px;
-        top:120px;
-        width:340px;
-        max-height:70vh;
-        overflow:auto;
-        background:rgba(0,0,0,0.92);
-        border-radius:12px;
-        padding:10px;
-        z-index:999999;
-        color:#fff;
-    }
-
-    .ultra-item{
-        padding:10px;
-        margin-bottom:6px;
-        border-radius:10px;
-        background:rgba(255,255,255,0.06);
-        cursor:pointer;
-    }
-
-    .ultra-item:hover{
-        background:rgba(255,255,255,0.12);
-    }
-
-    .ultra-title{
-        font-size:14px;
-        white-space:nowrap;
-        overflow:hidden;
-        text-overflow:ellipsis;
-    }
-    `;
-    document.head.appendChild(style);
-}
-
-/* ================== PANEL ================== */
-
-var panel;
-var opened = false;
-
-function createPanel(){
-    panel = document.createElement('div');
-    panel.className = 'ultra-panel';
-    panel.style.display = 'none';
-    document.body.appendChild(panel);
-}
-
-/* ================== DATA ================== */
-
-function loadContent(){
-
-    try{
-        var active = Lampa.Activity.active();
-        if(!active || !active.movie) return;
-    } catch(e){
-        return;
-    }
-
-    var movie = active.movie;
-    var id = movie.kinopoisk_id || movie.id;
-
-    var url = 'https://ab2024.ru/lite/events?id=' + id;
-
-    var req = new Lampa.Reguest();
-
-    panel.innerHTML = 'Loading...';
-    panel.style.display = 'block';
-
-    req.silent(url, function(json){
-
-        panel.innerHTML = '';
-
-        var list = json && json.online ? json.online : [];
-
-        if(!list.length){
-            panel.innerHTML = 'No results';
-            return;
-        }
-
-        list.forEach(function(item){
-
-            var el = document.createElement('div');
-            el.className = 'ultra-item';
-            el.innerHTML = '<div class="ultra-title">'+(item.title||'No title')+'</div>';
-
-            el.onclick = function(){
-                try{
-                    Lampa.Player.play(item);
-                }catch(e){}
-            };
-
-            panel.appendChild(el);
-        });
-
-    }, function(){
-        panel.innerHTML = 'Error';
+  function m() {
+    const e = d,
+      t = [
+        { title: "Версія конфігу", subtitle: e.version, noselect: !0 },
+        {
+          title: "Тип пристрою",
+          subtitle: e.device.type.toUpperCase(),
+          noselect: !0,
+        },
+        {
+          title: "Підтримка HDR",
+          subtitle: e.device.supported_hdr.join(", ") || "немає",
+          noselect: !0,
+        },
+        {
+          title: "Підтримка звуку",
+          subtitle: e.device.supported_audio.join(", ") || "стерео",
+          noselect: !0,
+        },
+        {
+          title: "Пріоритет параметрів",
+          subtitle: e.parameter_priority.join(" > "),
+          noselect: !0,
+        },
+        {
+          title: "Пріоритет озвучок",
+          subtitle: `${e.audio_track_priority.length} шт. • Натисніть для перегляду`,
+          action: "show_voices",
+        },
+        {
+          title: "Мінімально сидів",
+          subtitle: e.preferences.min_seeds,
+          noselect: !0,
+        },
+        {
+          title: "Кількість рекомендацій",
+          subtitle: e.preferences.recommendation_count,
+          noselect: !0,
+        },
+      ];
+    Lampa.Select.show({
+      title: "Поточна конфігурація",
+      items: t,
+      onSelect: (e) => {
+        "show_voices" === e.action &&
+          (function () {
+            const e = d,
+              t = e.audio_track_priority.map((e, t) => ({
+                title: `${t + 1}. ${e}`,
+                noselect: !0,
+              }));
+            Lampa.Select.show({
+              title: "Пріоритет озвучок",
+              items: t,
+              onBack: () => {
+                m();
+              },
+            });
+          })();
+      },
+      onBack: () => {
+        Lampa.Controller.toggle("settings");
+      },
     });
-}
+  }
 
-/* ================== BUTTON (SKAZ STYLE) ================== */
+  function g(e) {
+    const t = (e.Title || e.title || "").toLowerCase();
+    if (e.ffprobe && Array.isArray(e.ffprobe)) {
+      const t = e.ffprobe.find((e) => "video" === e.codec_type);
+      if (t && t.height)
+        return t.height >= 2160 || (t.width && t.width >= 3800)
+          ? 2160
+          : t.height >= 1440 || (t.width && t.width >= 2500)
+            ? 1440
+            : t.height >= 1080 || (t.width && t.width >= 1900)
+              ? 1080
+              : t.height >= 720 || (t.width && t.width >= 1260)
+                ? 720
+                : 480;
+    }
+    return /\b2160p\b/.test(t) || /\b4k\b/.test(t)
+      ? 2160
+      : /\b1440p\b/.test(t) || /\b2k\b/.test(t)
+        ? 1440
+        : /\b1080p\b/.test(t)
+          ? 1080
+          : /\b720p\b/.test(t)
+            ? 720
+            : null;
+  }
 
-function addButton(){
-
-    var container =
-        document.querySelector('.full-start__buttons') ||
-        document.querySelector('.full__buttons') ||
-        document.querySelector('.full-details__buttons') ||
-        document.body;
-
-    if(!container) return;
-
-    if(container.querySelector('.button--ultra')) return;
-
-    var btn = document.createElement('div');
-    btn.className = 'button--ultra selector';
-    btn.innerText = 'ULTRA SEARCH';
-
-    btn.onclick = function(){
-
-        if(!opened){
-            loadContent();
-            opened = true;
-        } else {
-            if(panel.style.display === 'none'){
-                panel.style.display = 'block';
-            } else {
-                panel.style.display = 'none';
-            }
-        }
+  function f(e) {
+    const t = (e.Title || e.title || "").toLowerCase(),
+      n = [];
+    if (e.ffprobe && Array.isArray(e.ffprobe)) {
+      const t = e.ffprobe.find((e) => "video" === e.codec_type);
+      if (t && t.side_data_list) {
+        t.side_data_list.some(
+          (e) =>
+            "DOVI configuration record" === e.side_data_type ||
+            "Dolby Vision RPU" === e.side_data_type,
+        ) && n.push("dolby_vision");
+      }
+    }
+    if (
+      ((t.includes("hdr10+") ||
+        t.includes("hdr10plus") ||
+        t.includes("hdr10 plus")) &&
+        (n.includes("hdr10plus") || n.push("hdr10plus")),
+      (t.includes("hdr10") || /hdr-?10/.test(t)) &&
+        (n.includes("hdr10") || n.push("hdr10")),
+      (t.includes("dolby vision") ||
+        t.includes("dovi") ||
+        /\sp8\s/.test(t) ||
+        /\(dv\)/.test(t) ||
+        /\[dv\]/.test(t) ||
+        /\sdv\s/.test(t) ||
+        /,\s*dv\s/.test(t)) &&
+        (n.includes("dolby_vision") || n.push("dolby_vision")),
+      !(
+        /\bhdr\b/.test(t) ||
+        t.includes("[hdr]") ||
+        t.includes("(hdr)") ||
+        t.includes(", hdr")
+      ) ||
+        n.includes("hdr10plus") ||
+        n.includes("hdr10") ||
+        n.push("hdr10"),
+      (t.includes("sdr") || t.includes("[sdr]") || t.includes("(sdr)")) &&
+        (n.includes("sdr") || n.push("sdr")),
+      0 === n.length)
+    )
+      return "sdr";
+    const r = d.scoring_rules?.hdr || {
+      dolby_vision: 40,
+      hdr10plus: 32,
+      hdr10: 32,
+      sdr: -16,
     };
+    let o = n[0],
+      s = r[o] || 0;
+    return (
+      n.forEach((e) => {
+        const t = r[e] || 0;
+        t > s && ((s = t), (o = e));
+      }),
+      o
+    );
+  }
 
-    container.prepend(btn);
-}
+  function b(e) {
+    const t = parseInt(e, 10);
+    return Number.isFinite(t) ? t : null;
+  }
 
-/* ================== INIT (NO LAMPA EVENTS) ================== */
+  function h(e, t) {
+    return null == e
+      ? null
+      : null == t || t === e
+        ? { start: e, end: e }
+        : { start: Math.min(e, t), end: Math.max(e, t) };
+  }
 
-function boot(){
+  function _(e) {
+    return Number.isInteger(e) && e >= 1 && e <= 60;
+  }
 
-    injectStyles();
-    createPanel();
+  function y(e) {
+    return Number.isInteger(e) && e >= 0 && e <= 5e3;
+  }
 
-    // 🔥 skaz-style polling (главный секрет стабильности)
-    setInterval(function(){
-        addButton();
-    }, 800);
-}
+  function v(e, t) {
+    return (
+      !(!Number.isInteger(e) || !Number.isInteger(t)) &&
+      !(e < 1900 || e > 2100) &&
+      !(t < 1900 || t > 2100) &&
+      !(t < e) &&
+      t - e <= 60
+    );
+  }
 
-/* ================== START ================== */
+  function w(e) {
+    const t = e.toLowerCase(),
+      n = [
+        /(?:^|[^\p{L}\p{N}])(фильм|film|movie|movies)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(спецвыпуск|special|specials|sp|ova|ona|bonus|extra|экстра|спэшл|спешл|спэшал|ова|она|спэшел)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(трейлер|trailer|teaser|тизер)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(саундтрек|ost|soundtrack)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(клип|clip|pv)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(интервью|interview)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(репортаж|report)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(промо|promo)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(отрывок|preview)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(анонс|announcement)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(съемки|making of|behind the scenes)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(сборник|collection)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(документальный|docu|documentary)(?=$|[^\p{L}\p{N}])/iu,
+        /(?:^|[^\p{L}\p{N}])(концерт|concert|live)(?=$|[^\p{L}\p{N}])/iu,
+        /movie\s*\d+/i,
+        /film\s*\d+/i,
+        /(?:^|[^\p{L}\p{N}])(мультфильм|аниме-фильм|спецэпизод|спецсерія)(?=$|[^\p{L}\p{N}])/iu,
+        /\bepisode of\b/i,
+      ];
+    for (const e of n) if (e.test(t)) return !0;
+    return !1;
+  }
 
-document.addEventListener('DOMContentLoaded', boot);
-setTimeout(boot, 1500);
-setTimeout(boot, 3000);
+  function L(e, t, n) {
+    if ("2x2" === String(n).toLowerCase().replace(/\s+/g, "")) return !0;
+    const r = e.slice(Math.max(0, t - 12), t).toLowerCase(),
+      o = e.slice(t + n.length, t + n.length + 12).toLowerCase(),
+      s = /(дб|dub)\s*\(/i.test(r),
+      a = /^\s*\)/.test(o);
+    return s && a;
+  }
 
+  function x({
+    season: e,
+    seasonRange: t,
+    episode: n,
+    episodeRange: r,
+    base: o,
+    title: s,
+  }) {
+    if (s && w(s)) return 0;
+    let a = o;
+    const i = e ?? t?.start ?? null,
+      l = n ?? r?.start ?? null;
+    return (
+      null != i && (a += 10),
+      null != l && (a += 10),
+      null != i && null != l && (a += 15),
+      t && t.end !== t.start && (a += 5),
+      r && r.end !== r.start && (a += 5),
+      null == i || _(i) || (a -= 60),
+      null == l || y(l) || (a -= 60),
+      (d = a),
+      Number.isFinite(d) ? Math.max(0, Math.min(100, Math.round(d))) : 0
+    );
+    var d;
+  }
+
+  function k(e) {
+    const t = (function (e) {
+        if (null == e) return "";
+        let t = String(e);
+        return (
+          (t = t.replace(/[\u2012\u2013\u2014\u2212]/g, "-")),
+          (t = t.replace(/х/gi, "x")),
+          (t = t.replace(/\u00A0/g, " ")),
+          (t = t.replace(/\s+/g, " ").trim()),
+          t
+        );
+      })(e),
+      n = (function (e) {
+        const t =
+          /(?:^|[^\p{L}\p{N}])(?:из|of)\s*(\d{1,4})(?=$|[^\p{L}\p{N}])/iu.exec(
+            e,
+          );
+        if (!t) return null;
+        const n = b(t[1]);
+        return y(n) ? n : null;
+      })(t);
+    if (w(t))
+      return { season: null, episode: null, source: "trash", confidence: 0 };
+    const r = [],
+      o = [];
+    {
+      const e =
+        /s(\d{1,2})\s*[ex](\d{1,3})(?:\s*[-]\s*[ex]?(\d{1,3}))?\b/i.exec(t);
+      if (e) {
+        const t = b(e[1]),
+          n = h(b(e[2]), b(e[3])),
+          s = n ? n.start : null;
+        (_(t) && r.push({ season: t, base: 90, name: "SxxEyy" }),
+          y(s) &&
+            o.push({ episode: s, episodeRange: n, base: 90, name: "SxxEyy" }));
+      }
+    }
+    {
+      const e =
+        /\b(\d{1,2})\s*[-]\s*(\d{1,2})\s*x\s*(\d{1,3})(?:\s*[-]\s*(\d{1,4}))?\b/i.exec(
+          t,
+        );
+      if (e && !L(t, e.index, e[0])) {
+        const t = b(e[1]),
+          n = b(e[2]),
+          s = b(e[3]),
+          a = b(e[4]),
+          i = h(t, n),
+          l = h(s, a);
+        (i &&
+          _(i.start) &&
+          _(i.end) &&
+          r.push({
+            season: i.start,
+            seasonRange: i.start !== i.end ? i : void 0,
+            base: 92,
+            name: "Srange x Erange",
+          }),
+          l &&
+            y(l.start) &&
+            y(l.end) &&
+            o.push({
+              episode: l.start,
+              episodeRange: l.start !== l.end ? l : void 0,
+              base: 92,
+              name: "Srange x Erange",
+            }));
+      }
+    }
+    {
+      const e = /\b(\d{1,2})\s*x\s*(\d{1,3})(?:\s*[-]\s*(\d{1,3}))?\b/i.exec(t);
+      if (e)
+        if (L(t, e.index, e[0]));
+        else {
+          const t = b(e[1]),
+            n = h(b(e[2]), b(e[3])),
+            s = n ? n.start : null;
+          (_(t) && r.push({ season: t, base: 85, name: "xxXyy" }),
+            y(s) &&
+              o.push({ episode: s, episodeRange: n, base: 85, name: "xxXyy" }));
+        }
+    }
+    {
+      const e = t.matchAll(/[\[\(]([^\]\)]+)[\]\)]?/g);
+      for (const t of e) {
+        const e = t[1],
+          n = /(\d{1,4})\s*[-]\s*(\d{1,4})/g;
+        let r;
+        for (; null !== (r = n.exec(e)); ) {
+          const t = b(r[1]),
+            n = b(r[2]);
+          if (null == t || null == n || v(t, n)) continue;
+          const s = e
+              .slice(r.index + r[0].length, r.index + r[0].length + 12)
+              .toLowerCase(),
+            a = e.slice(Math.max(0, r.index - 12), r.index).toLowerCase(),
+            i = /(эп|ep|из|of|tv|series|сер)/i.test(a + " " + s);
+          if (!(i || Math.max(t, n) >= 50)) continue;
+          const l = h(t, n),
+            d = l?.start ?? null;
+          o.push({
+            episode: y(d) ? d : null,
+            episodeRange: l && y(l.start) ? l : void 0,
+            base: i ? 75 : 70,
+            name: "bracket range",
+          });
+        }
+        const s = /(?:эп|ep|сер|серия)\s*(\d{1,4})(?=$|[^\d])/i,
+          a =
+            /(?:^|[^\d])(\d{1,4})(?:\s*(?:из|эп|ep|сер|of|from))(?=$|[^\d])/i.exec(
+              e,
+            ) || s.exec(e);
+        if (a) {
+          const e = b(a[1]);
+          y(e) && o.push({ episode: e, base: 65, name: "bracket single" });
+        }
+      }
+    }
+    {
+      const e = [
+        {
+          re: /(?:^|[^\p{L}\p{N}])(\d{1,2})(?:\s*[-]\s*(\d{1,2}))?\s*сезон(?:а|ы|ів)?(?=$|[^\p{L}\p{N}])/iu,
+          base: 75,
+          name: "N сезон",
+        },
+        {
+          re: /(?:^|[^\p{L}\p{N}])сезон(?:а|ы|и|ів)?\s*(\d{1,2})(?:\s*[-]\s*(\d{1,2}))?(?=$|[^\p{L}\p{N}])/iu,
+          base: 70,
+          name: "Сезон N",
+        },
+        {
+          re: /(?:^|[^\p{L}\p{N}])сезон(?:а|ы|и|ів)?\s*:\s*(\d{1,2})(?:\s*[-]\s*(\d{1,2}))?/iu,
+          base: 66,
+          name: "Сезон: N",
+        },
+        {
+          re: /\bseason\s*[: ]\s*(\d{1,2})(?:\s*[-]\s*(\d{1,2}))?\b/i,
+          base: 55,
+          name: "Season:",
+        },
+        { re: /\bseason\s*(\d{1,2})\b/i, base: 52, name: "Season N" },
+        { re: /\[\s*s(\d{1,2})\s*\]/i, base: 80, name: "[Sxx]" },
+        { re: /\bs(\d{1,2})\b/i, base: 50, name: "Sxx (season-only)" },
+      ];
+      for (const { re: n, base: o, name: s } of e) {
+        const e = n.exec(t);
+        if (!e) continue;
+        if ("Сезон: N" === s) {
+          const n = t
+            .slice(e.index + e[0].length, e.index + e[0].length + 20)
+            .toLowerCase();
+          if (/^[\s]* (сер|series|episode|эпиз)/i.test(n)) continue;
+        }
+        const a = b(e[1]),
+          i = b(e[2]);
+        if (null == a) continue;
+        const l = h(a, i);
+        r.push({
+          season: l?.start ?? null,
+          seasonRange: l && l.end !== l.start ? l : void 0,
+          base: o,
+          name: s,
+        });
+      }
+    }
+    {
+      const e = [
+        {
+          re: /(?:^|[^\p{L}\p{N}])(?:серии|серія|серії|эпизод(?:ы)?|episodes|эп\.?)\s*[: ]?\s*(\d{1,4})(?:\s*[-]\s*(\d{1,4}))?(?=$|[^\p{L}\p{N}])/iu,
+          base: 60,
+          name: "серии",
+        },
+        {
+          re: /(?:^|[^\p{L}\p{N}])(\d{1,4})(?:\s*[-]\s*(\d{1,4}))?\s*(?:серии|серія|серії|эпизод(?:ы)?|эп\.?)(?=$|[^\p{L}\p{N}])/iu,
+          base: 62,
+          name: "1-4 серии",
+        },
+        {
+          re: /(?:^|[^\p{L}\p{N}])(\d{1,4})\s*[-]\s*(\d{1,4})\s*серия(?=$|[^\p{L}\p{N}])/iu,
+          base: 62,
+          name: "1-4 серия",
+        },
+        {
+          re: /(?:^|[^\p{L}\p{N}])(\d{1,4})\s*(?:серия|серія)(?=$|[^\p{L}\p{N}])/iu,
+          base: 54,
+          name: "N серия",
+        },
+        {
+          re: /(?:серии|серії)\s*(\d{1,4})\s*из\s*(\d{1,4})/iu,
+          base: 65,
+          name: "серии X из Y",
+        },
+      ];
+      for (const { re: n, base: r, name: s } of e) {
+        const e = n.exec(t);
+        if (!e) continue;
+        const a = b(e[1]),
+          i = b(e[2]);
+        if (null == a) continue;
+        const l = h(a, i);
+        o.push({
+          episode: l?.start ?? null,
+          episodeRange: l && l.end !== l.start ? l : void 0,
+          base: r,
+          name: s,
+        });
+      }
+    }
+    const s = r.sort((e, t) => t.base - e.base)[0] || null,
+      a = o.sort((e, t) => t.base - e.base)[0] || null;
+    if (s || a) {
+      const e = s?.season ?? null,
+        r = a?.episode ?? null,
+        o = s?.seasonRange,
+        i = a?.episodeRange,
+        l = null != e && _(e) ? e : null,
+        d = null != r && y(r) ? r : null;
+      return {
+        season: l,
+        seasonRange: o,
+        episode: d,
+        episodeRange: i,
+        episodesTotal: n,
+        episodesCount: i ? i.end - i.start + 1 : null != d ? 1 : null,
+        source: [s?.name, a?.name].filter(Boolean).join(" + ") || "heuristic",
+        confidence: x({
+          season: l,
+          seasonRange: o,
+          episode: d,
+          episodeRange: i,
+          base: Math.max(s?.base ?? 0, a?.base ?? 0),
+          title: t,
+        }),
+      };
+    }
+    return { season: null, episode: null, source: "none", confidence: 0 };
+  }
+
+  function S(e, t, n = !1, r = 1) {
+    const o = e.Title || e.title || "",
+      s = e.Size || e.size_bytes || 0;
+    if (e.ffprobe && Array.isArray(e.ffprobe)) {
+      const t = e.ffprobe.find((e) => "video" === e.codec_type);
+      if (t) {
+        if (t.tags && t.tags.BPS) {
+          const e = parseInt(t.tags.BPS, 10);
+          if (!isNaN(e) && e > 0) return Math.round(e / 1e6);
+        }
+        if (t.bit_rate) {
+          const e = parseInt(t.bit_rate, 10);
+          if (!isNaN(e) && e > 0) return Math.round(e / 1e6);
+        }
+      }
+    }
+    let a = t?.runtime || t?.duration || t?.episode_run_time;
+    if (
+      (Array.isArray(a) && (a = a.length > 0 ? a[0] : 0),
+      !a && n && (a = 45),
+      s > 0 && a > 0)
+    ) {
+      let e = 1;
+      if (n) {
+        const t = k(o);
+        if (t && t.episodesCount && t.episodesCount > 1) e = t.episodesCount;
+        else if (t && t.episodesTotal && t.episodesTotal > 1)
+          e = t.episodesTotal;
+        else if (r > 1) {
+          s > (/\b2160p\b|4k\b/i.test(o) ? 32212254720 : 10737418240) &&
+            (e = r);
+        }
+      }
+      const t = 60 * a * e,
+        i = 8 * s,
+        l = Math.round(i / Math.pow(1e3, 2) / t);
+      if (l > 0) return Math.min(l, 150);
+    }
+    if (e.bitrate) {
+      const t = String(e.bitrate).match(/(\d+\.?\d*)/);
+      if (t) return Math.round(parseFloat(t[1]));
+    }
+    const i = o.match(/(\d+\.?\d*)\s*(?:Mbps|Мбит)/i);
+    return i ? Math.round(parseFloat(i[1])) : 0;
+  }
+
+  function N(e, t, n = !1, r = 1) {
+    const o = (e.Title || e.title || "").toLowerCase(),
+      s = [];
+    if (e.ffprobe && Array.isArray(e.ffprobe)) {
+      e.ffprobe
+        .filter((e) => "audio" === e.codec_type)
+        .forEach((e) => {
+          const t = (function (e) {
+            const t = e.tags || {},
+              n = (t.title || t.handler_name || "").toLowerCase(),
+              r = (t.language || "").toLowerCase(),
+              o = [];
+            for (const e in M) {
+              const t = M[e];
+              if (
+                "Дубляж RU" === e &&
+                ("rus" === r || "russian" === r) &&
+                (n.includes("dub") || n.includes("дубляж"))
+              ) {
+                o.push(e);
+                continue;
+              }
+              t.some((e) => {
+                const t = e.toLowerCase();
+                if (t === r) return !0;
+                if (t.length <= 3) {
+                  return new RegExp(
+                    "\\b" + t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b",
+                    "i",
+                  ).test(n);
+                }
+                return n.includes(t);
+              }) && o.push(e);
+            }
+            return o;
+          })(e);
+          t.forEach((e) => {
+            s.includes(e) || s.push(e);
+          });
+        });
+    }
+    for (const e in M) {
+      if (s.includes(e)) continue;
+      M[e].some((e) => {
+        const t = e.toLowerCase();
+        if (t.length <= 3) {
+          return new RegExp(
+            "\\b" + t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b",
+            "i",
+          ).test(o);
+        }
+        return o.includes(t);
+      }) && s.push(e);
+    }
+    return {
+      resolution: g(e),
+      hdr_type: f(e),
+      audio_tracks: s,
+      bitrate: S(e, t, n, r),
+    };
+  }
+
+  const M = {
+    "Дубляж RU": ["дубляж", "дб", "d", "dub"],
+    "Дубляж UKR": ["ukr", "укр"],
+    "Дубляж Піфагор": ["піфагор", "пифагор"],
+    "Дубляж Red Head Sound": ["red head sound", "rhs"],
+    "Дубляж Videofilm": ["videofilm"],
+    "Дубляж MovieDalen": ["moviedalen"],
+    "Дубляж LeDoyen": ["ledoyen"],
+    "Дубляж Whiskey Sound": ["whiskey sound"],
+    "Дубляж IRON VOICE": ["iron voice"],
+    "Дубляж AlexFilm": ["alexfilm"],
+    "Дубляж Amedia": ["amedia"],
+    "MVO HDRezka": ["hdrezka", "hdrezka studio"],
+    "MVO LostFilm": ["lostfilm"],
+    "MVO TVShows": ["tvshows", "tv shows"],
+    "MVO Jaskier": ["jaskier"],
+    "MVO RuDub": ["rudub"],
+    "MVO LE-Production": ["le-production"],
+    "MVO Кубик в Кубі": ["кубик в кубе", "кубик в кубі"],
+    "MVO NewStudio": ["newstudio"],
+    "MVO Good People": ["good people"],
+    "MVO IdeaFilm": ["ideafilm"],
+    "MVO AMS": ["ams"],
+    "MVO Baibako": ["baibako"],
+    "MVO Profix Media": ["profix media"],
+    "MVO NewComers": ["newcomers"],
+    "MVO GoLTFilm": ["goltfilm"],
+    "MVO JimmyJ": ["jimmyj"],
+    "MVO Kerob": ["kerob"],
+    "MVO LakeFilms": ["lakefilms"],
+    "MVO Novamedia": ["novamedia"],
+    "MVO Twister": ["twister"],
+    "MVO Voice Project": ["voice project"],
+    "MVO Dragon Money Studio": ["dragon money", "dms"],
+    "MVO Syncmer": ["syncmer"],
+    "MVO ColdFilm": ["coldfilm"],
+    "MVO SunshineStudio": ["sunshinestudio"],
+    "MVO Ultradox": ["ultradox"],
+    "MVO Octopus": ["octopus"],
+    "MVO OMSKBIRD": ["omskbird records", "omskbird"],
+    "AVO Володарський": ["володарский"],
+    "AVO Яроцький": ["яроцкий", "м. яроцкий"],
+    "AVO Сербін": ["сербин", "ю. сербин"],
+    "PRO Gears Media": ["gears media"],
+    "PRO Hamsterstudio": ["hamsterstudio", "hamster"],
+    "PRO P.S.Energy": ["p.s.energy"],
+    "UKR НеЗупиняйПродакшн": ["незупиняйпродакшн"],
+    Original: ["original"],
+  };
+
+  function O(e, t) {
+    const n = e.toLowerCase();
+    return (M[t] || []).some((e) => {
+      const t = e.toLowerCase();
+      if (t.length <= 3) {
+        return new RegExp(
+          "\\b" + t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b",
+          "i",
+        ).test(n);
+      }
+      return n.includes(t);
+    });
+  }
+
+  function R(e, t) {
+    if (!Lampa.Storage.get("easytorrent_enabled", !0)) return;
+    if (!e.Results || !Array.isArray(e.Results)) return;
+    console.log(
+      "[EasyTorrent] Отримано від парсера:",
+      e.Results.length,
+      "торрентів",
+    );
+    const n = t?.movie,
+      r = !(!n || !(n.original_name || n.number_of_seasons > 0 || n.seasons));
+    let o = 1;
+    if (r) {
+      let t = 1,
+        n = 1;
+      (e.Results.forEach((e) => {
+        const r = k(e.Title || e.title || "");
+        (r.episodesCount > t && (t = r.episodesCount),
+          r.episodesTotal > n && (n = r.episodesTotal));
+      }),
+        (o = t > 1 ? t : n),
+        o > 1 &&
+          console.log(
+            `[EasyTorrent] Режим серіалу. Аналіз: Реал макс=${t}, План=${n}. Використовуємо=${o}`,
+          ));
+    }
+const s = (function () {
+        const e = d,
+          t = e.scoring_rules;
+        return function (n) {
+          let r = 100;
+          const o = n.features,
+            s = n.Seeds || n.seeds || n.Seeders || n.seeders || 0;
+          
+          // Визначаємо назву трекера
+          const trackerName = (n.Tracker || n.tracker || "").toLowerCase();
+          
+          let a = {
+            base: 100,
+            resolution: 0,
+            hdr: 0,
+            bitrate: 0,
+            availability: 0,
+            audio: 0,
+            audio_track: 0,
+            tracker_bonus: 0 // Нове поле для звіту
+          };
+
+          // --- ДОДАНО: Бонус за Toloka ---
+          if (trackerName.includes('toloka')) {
+            const tolokaBonus = 20; // Невеликий пріоритет
+            a.tracker_bonus = tolokaBonus;
+            r += tolokaBonus;
+          }
+          // ------------------------------
+
+          const i = e.parameter_priority || [
+              "resolution",
+              "hdr",
+              "bitrate",
+              "audio_track",
+              "availability",
+              "audio_quality",
+            ],
+            l = (t.weights?.resolution || 100) / 100,
+            d = (t.resolution[o.resolution] || 0) * l;
+          ((a.resolution = d), (r += d));
+          const c = (t.weights?.hdr || 100) / 100;
+          let p = (t.hdr[o.hdr_type] || 0) * c;
+          ((a.hdr = p), (r += p));
+          let u = 0;
+          const m =
+            (t.weights?.bitrate || 100 * t.bitrate_bonus?.weight || 55) / 100;
+          if (o.bitrate > 0) {
+            const e = t.bitrate_bonus.thresholds;
+            for (const t of e)
+              if (o.bitrate >= t.min && o.bitrate < t.max) {
+                u = t.bonus * m;
+                break;
+              }
+          } else {
+            const e = i.indexOf("bitrate");
+            u = (0 === e ? -50 : 1 === e ? -30 : -15) * m;
+          }
+          ((a.bitrate = u), (r += u));
+          const g = (t.weights?.audio_track || 100) / 100,
+            f = e.audio_track_priority || [],
+            b = o.audio_tracks || [];
+          let h = 0;
+          for (let e = 0; e < f.length; e++) {
+            const t = f[e];
+            if (b.some((e) => O(e, t))) {
+              h = 15 * (f.length - e) * g;
+              break;
+            }
+          }
+          ((a.audio_track = h), (r += h));
+          let _ = 0;
+          const y = e.preferences?.min_seeds || t.availability?.min_seeds || 1,
+            v =
+              (t.weights?.availability || 100 * t.availability?.weight || 70) /
+              100;
+          if (s < y) {
+            const e = i.indexOf("availability");
+            _ = (0 === e ? -80 : 1 === e ? -40 : -20) * v;
+          } else _ = 12 * Math.log10(s + 1) * v;
+          if (
+            ((a.availability = _),
+            (r += _),
+            "resolution" === i[0] &&
+              (e.device?.type || "tv_4k").includes("4k") &&
+              (2160 === o.resolution && o.bitrate > 0
+                ? ((a.special = 80), (r += 80))
+                : 2160 === o.resolution
+                  ? ((a.special = 30), (r += 30))
+                  : 1080 === o.resolution &&
+                    s > 50 &&
+                    o.bitrate > 0 &&
+                    ((a.special = 10), (r += 10))),
+            (r = Math.max(0, Math.round(r))),
+            Lampa.Storage.get("easytorrent_show_scores", !1))
+          ) {
+            const e = (n.Title || n.title || "").substring(0, 80);
+            console.log("[Score]", e, {
+              total: r,
+              breakdown: a,
+              features: {
+                resolution: o.resolution,
+                hdr_type: o.hdr_type,
+                bitrate: o.bitrate,
+                audio_tracks: o.audio_tracks,
+              },
+              seeds: s,
+              paramPriority: i.slice(0, 3),
+            });
+          }
+          return { score: r, breakdown: a };
+        };
+      })(),
+      i = e.Results.map((e, t) => {
+        const a = N(e, n, r, o),
+          i = s({ ...e, features: a });
+        return {
+          element: e,
+          originalIndex: t,
+          features: a,
+          score: i.score,
+          breakdown: i.breakdown,
+        };
+      });
+    (console.log("[EasyTorrent] Торренти оцінені"),
+      i.sort((e, t) => {
+        if (t.score !== e.score) return t.score - e.score;
+        if (t.features.bitrate !== e.features.bitrate)
+          return t.features.bitrate - e.features.bitrate;
+        const n =
+          e.element.Seeds ||
+          e.element.seeds ||
+          e.element.Seeders ||
+          e.element.seeders ||
+          0;
+        return (
+          (t.element.Seeds ||
+            t.element.seeds ||
+            t.element.Seeders ||
+            t.element.seeders ||
+            0) - n
+        );
+      }),
+      i.length > 0 &&
+        (console.log("=== ВСІ ТОРРЕНТИ (відсортовані за score) ==="),
+        i.forEach((e, t) => {
+          const n =
+              e.element.Seeds ||
+              e.element.seeds ||
+              e.element.Seeders ||
+              e.element.seeders ||
+              0,
+            r = e.breakdown,
+            o = e.element.Title.substring(0, 100),
+            s = [];
+          (void 0 !== r.audio_track &&
+            0 !== r.audio_track &&
+            s.push(
+              `A:${r.audio_track > 0 ? "+" : ""}${Math.round(r.audio_track)}`,
+            ),
+            void 0 !== r.resolution &&
+              0 !== r.resolution &&
+              s.push(
+                `R:${r.resolution > 0 ? "+" : ""}${Math.round(r.resolution)}`,
+              ),
+            void 0 !== r.bitrate &&
+              0 !== r.bitrate &&
+              s.push(`B:${r.bitrate > 0 ? "+" : ""}${Math.round(r.bitrate)}`),
+            void 0 !== r.availability &&
+              0 !== r.availability &&
+              s.push(
+                `S:${r.availability > 0 ? "+" : ""}${Math.round(r.availability)}`,
+              ),
+            void 0 !== r.hdr &&
+              0 !== r.hdr &&
+              s.push(`H:${r.hdr > 0 ? "+" : ""}${Math.round(r.hdr)}`),
+            void 0 !== r.special &&
+              0 !== r.special &&
+              s.push(`SP:${r.special > 0 ? "+" : ""}${Math.round(r.special)}`));
+          const a = s.length > 0 ? `[${s.join(" ")}]` : "[no breakdown]";
+          console.log(
+            `${t + 1}. [${e.score}] ${e.features.resolution || "?"}p ${e.features.hdr_type} ${e.features.bitrate}mb Seeds:${n} ${a} | ${o}`,
+          );
+        }),
+        console.log(`=== ВСЬОГО: ${i.length} торрентів ===`)));
+    const l = d.preferences.recommendation_count || 3,
+      c = d.preferences.min_seeds || 2,
+      p = i.filter(
+        (e) =>
+          (e.element.Seeds ||
+            e.element.seeds ||
+            e.element.Seeders ||
+            e.element.seeders ||
+            0) >= c,
+      );
+    ((a = p
+      .slice(0, l)
+      .map((e, t) => ({
+        element: e.element,
+        rank: t,
+        score: e.score,
+        features: e.features,
+        isIdeal: 0 === t && e.score >= 150,
+      }))),
+      i.forEach((e) => {
+        ((e.element._recommendScore = e.score),
+          (e.element._recommendBreakdown = e.breakdown),
+          (e.element._recommendFeatures = e.features));
+      }),
+      console.log("[EasyTorrent] Всі торренти промарковані балами"),
+      console.log("[EasyTorrent] Топ-рекомендації збережені"));
+  }
+
+  function C(e) {
+    if (!Lampa.Storage.get("easytorrent_enabled", !0)) return;
+    const { element: t, item: n } = e,
+      r = Lampa.Storage.get("easytorrent_show_scores", !0);
+    if (void 0 === t._recommendRank) return;
+    (n.find(".torrent-recommend-badge").remove(),
+      n.find(".torrent-recommend-panel").remove());
+    const o = t._recommendRank,
+      s = t._recommendScore,
+      a = t._recommendBreakdown || {},
+      i = d.preferences.recommendation_count || 3;
+    if (!(t._recommendIsIdeal || o < i || r)) return;
+    const l = t._recommendFeatures || {},
+      c = [];
+    (l.resolution && c.push(`${l.resolution}p`),
+      l.hdr_type &&
+        c.push(
+          {
+            dolby_vision: "DV",
+            hdr10plus: "HDR10+",
+            hdr10: "HDR10",
+            sdr: "SDR",
+          }[l.hdr_type] || String(l.hdr_type).toUpperCase(),
+        ),
+      l.bitrate && c.push(`${l.bitrate} Mbps`));
+    let u = "neutral",
+      m = "";
+    t._recommendIsIdeal
+      ? ((u = "ideal"), (m = p("ideal_badge")))
+      : o < i
+        ? ((u = "recommended"), (m = `${p("recommended_badge")} • #${o + 1}`))
+        : ((u = "neutral"), (m = "Оцінка"));
+    const g = $(
+        `<div class="torrent-recommend-panel torrent-recommend-panel--${u}"></div>`,
+      ),
+      f = $('<div class="torrent-recommend-panel__left"></div>');
+    (f.append(`<div class="torrent-recommend-panel__label">${m}</div>`),
+      c.length &&
+        f.append(
+          `<div class="torrent-recommend-panel__meta">${c.join(" • ")}</div>`,
+        ));
+    const b = $('<div class="torrent-recommend-panel__right"></div>');
+    if (
+      (r &&
+        void 0 !== s &&
+        b.append(`<div class="torrent-recommend-panel__score">${s}</div>`),
+      g.append(f),
+      r)
+    ) {
+      const e = (function (e) {
+        if (!e || 0 === Object.keys(e).length) return "";
+        const t = $('<div class="torrent-recommend-panel__chips"></div>');
+        return (
+          [
+            { key: "audio_track", name: "Озвучка" },
+            { key: "resolution", name: "Розд." },
+            { key: "bitrate", name: "Бітрейт" },
+            { key: "availability", name: "Сіди" },
+            { key: "hdr", name: "HDR" },
+            { key: "special", name: "Бонус" },
+          ].forEach((n) => {
+            if (void 0 === e[n.key] || 0 === e[n.key]) return;
+            const r = Math.round(e[n.key]),
+              o = r > 0 ? "+" : "",
+              s = r >= 0 ? "tr-chip--pos" : "tr-chip--neg";
+            t.append(
+              `\n                <div class="tr-chip ${s}">\n                    <span class="tr-chip__name">${n.name}</span>\n                    <span class="tr-chip__val">${o}${r}</span>\n                </div>\n            `,
+            );
+          }),
+          t
+        );
+      })(a);
+      e && g.append(e);
+    }
+    (g.append(b), n.append(g));
+  }
+
+  function V() {
+    (void 0 === Lampa.Storage.get("easytorrent_enabled") &&
+      Lampa.Storage.set("easytorrent_enabled", !0),
+      void 0 === Lampa.Storage.get("easytorrent_show_scores") &&
+        Lampa.Storage.set("easytorrent_show_scores", !0),
+      Lampa.SettingsApi.addComponent({
+        component: "easytorrent",
+        name: e,
+        icon: n,
+      }),
+      Lampa.SettingsApi.addParam({
+        component: "easytorrent",
+        param: { name: "easytorrent_about", type: "static" },
+        field: { name: "<div>" + e + " " + t + "</div>" },
+        onRender: function (e) {
+          (e.css("opacity", "0.7"),
+            e
+              .find(".settings-param__name")
+              .css({ "font-size": "1.2em", "margin-bottom": "0.3em" }),
+            e.append(
+              '<div style="font-size: 0.9em; padding: 0 1.2em; line-height: 1.4;">Автор: DarkestClouds<br>Система рекомендацій торрентів на основі якості, HDR та озвучки</div>',
+            ));
+        },
+      }),
+      Lampa.SettingsApi.addParam({
+        component: "easytorrent",
+        param: { name: "easytorrent_enabled", type: "trigger", default: !0 },
+        field: {
+          name: p("easytorrent_title"),
+          description: p("easytorrent_desc"),
+        },
+      }),
+      Lampa.SettingsApi.addParam({
+        component: "easytorrent",
+        param: {
+          name: "easytorrent_show_scores",
+          type: "trigger",
+          default: !0,
+        },
+        field: { name: p("show_scores"), description: p("show_scores_desc") },
+      }),
+      Lampa.SettingsApi.addParam({
+        component: "easytorrent",
+        param: {
+          name: "easytorrent_config_json",
+          type: "static",
+          default: JSON.stringify(l),
+        },
+        field: { name: p("config_json"), description: p("config_json_desc") },
+        onRender: (e) => {
+          const t = () => {
+            const t = d,
+              n = `${t.device.type.toUpperCase()} | ${t.parameter_priority[0]}`;
+            e.find(".settings-param__value").text(n);
+          };
+          (t(),
+            e.on("hover:enter", () => {
+              Lampa.Select.show({
+                title: p("config_json"),
+                items: [
+                  { title: p("config_view"), action: "view" },
+                  { title: p("config_edit"), action: "edit" },
+                  { title: p("config_reset"), action: "reset" },
+                ],
+                onSelect: (e) => {
+                  "view" === e.action
+                    ? m()
+                    : "edit" === e.action
+                      ? Lampa.Input.edit(
+                          {
+                            value:
+                              Lampa.Storage.get("easytorrent_config_json") ||
+                              JSON.stringify(l),
+                            free: !0,
+                          },
+                          (e) => {
+                            if (e)
+                              try {
+                                (JSON.parse(e),
+                                  u(e),
+                                  t(),
+                                  Lampa.Noty.show("OK"));
+                              } catch (e) {
+                                Lampa.Noty.show(p("config_error"));
+                              }
+                            Lampa.Controller.toggle("settings");
+                          },
+                        )
+                      : "reset" === e.action &&
+                        (u(l),
+                        t(),
+                        Lampa.Noty.show("OK"),
+                        Lampa.Controller.toggle("settings"));
+                },
+                onBack: () => {
+                  Lampa.Controller.toggle("settings");
+                },
+              });
+            }));
+        },
+      }),
+      Lampa.SettingsApi.addParam({
+        component: "easytorrent",
+        param: { name: "easytorrent_qr_setup", type: "static" },
+        field: {
+          name: "Розставити пріоритети",
+          description: "Відкрийте візард на телефоні через QR-код",
+        },
+        onRender: (e) => {
+          e.on("hover:enter", () => {
+            !(function () {
+              const e = (function () {
+                  const e = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+                  let t = "";
+                  for (let n = 0; n < 6; n++)
+                    t += e.charAt(Math.floor(Math.random() * e.length));
+                  return t;
+                })(),
+                t = `${s}?pairCode=${e}`,
+                n = $(
+                  `\n            <div class="about">\n                <div style="text-align: center; margin-bottom: 20px;">\n                    <div id="qrCodeContainer" style="background: white; padding: 20px; border-radius: 15px; display: inline-block; margin-bottom: 20px;height: 20em;width: 20em;"></div>\n                </div>\n                <div class="about__text" style="text-align: center; margin-bottom: 15px;">\n                    <strong>Або перейдіть вручну:</strong><br>\n                    <span style="word-break: break-all;">${t}</span>\n                </div>\n                <div class="about__text" style="text-align: center;">\n                    <strong>Код сполучення:</strong>\n                    <div style="font-size: 2em; font-weight: bold; letter-spacing: 0.3em; margin: 10px 0; color: #667eea;">${e}</div>\n                </div>\n                <div class="about__text" id="qrStatus" style="text-align: center; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 10px; margin-top: 20px;">\n                    ⏳ Очікування конфігурації...\n                </div>\n            </div>\n        `,
+                );
+              (Lampa.Modal.open({
+                title: "🔗 Налаштування пріоритетів",
+                html: n,
+                size: "medium",
+                onBack: () => {
+                  (i && (clearInterval(i), (i = null)),
+                    Lampa.Modal.close(),
+                    Lampa.Controller.toggle("settings_component"));
+                },
+              }),
+                setTimeout(() => {
+                  const e = document.getElementById("qrCodeContainer");
+                  if (e && Lampa.Utils && Lampa.Utils.qrcode)
+                    try {
+                      Lampa.Utils.qrcode(t, e);
+                    } catch (t) {
+                      e.innerHTML =
+                        '<p style="color: #f44336;">Помилка генерації QR-коду</p>';
+                    }
+                }, 100));
+              let a = null;
+              i = setInterval(async () => {
+                const t = await (async function (e) {
+                  try {
+                    const t = `${r}/rest/v1/tv_configs?id=eq.${encodeURIComponent(e)}&select=data,updated_at`,
+                      n = await fetch(t, {
+                        headers: { apikey: o, Authorization: `Bearer ${o}` },
+                      });
+                    if (!n.ok) throw new Error(`Fetch failed: ${n.status}`);
+                    const s = await n.json();
+                    return s.length ? s[0].data : null;
+                  } catch (e) {
+                    return (
+                      console.error("[EasyTorrent] Fetch error:", e),
+                      null
+                    );
+                  }
+                })(e);
+                if (t) {
+                  const e = t.generated;
+                  e !== a &&
+                    ((a = e),
+                    u(t),
+                    $("#qrStatus")
+                      .html("✅ Конфігурація отримана!")
+                      .css("color", "#4CAF50"),
+                    setTimeout(() => {
+                      (i && (clearInterval(i), (i = null)),
+                        Lampa.Modal.close(),
+                        Lampa.Noty.show("Конфігурація оновлена!"),
+                        Lampa.Controller.toggle("settings_component"));
+                    }, 2e3));
+                }
+              }, 5e3);
+            })();
+          });
+        },
+      }));
+  }
+
+  function I() {
+    const e =
+      window.Lampa.Parser ||
+      (window.Lampa.Component ? window.Lampa.Component.Parser : null);
+    if (!e || !e.get)
+      return void console.log(
+        "[EasyTorrent] Parser не знайдено",
+      );
+    console.log(
+      "[EasyTorrent] Патчимо Parser.get",
+    );
+    const t = e.get;
+    ((e.get = function (e, n, r) {
+      return t.call(
+        this,
+        e,
+        function (t) {
+          if (t && t.Results && Array.isArray(t.Results)) {
+            R(t, e);
+            let n = t.Results;
+            const r = (e) => {
+                if (!Array.isArray(e) || 0 === e.length) return e;
+                const t = d.preferences.recommendation_count || 3,
+                  n = d.preferences.min_seeds || 0,
+                  r = [...e]
+                    .filter((e) => {
+                      const t =
+                        e.Seeds || e.seeds || e.Seeders || e.seeders || 0;
+                      return (e._recommendScore || 0) > 0 && t >= n;
+                    })
+                    .sort(
+                      (e, t) =>
+                        (t._recommendScore || 0) - (e._recommendScore || 0),
+                    )
+                    .slice(0, t);
+                if (0 === r.length)
+                  return (e.forEach((e) => (e._recommendRank = 999)), e);
+                const o = Array.prototype.filter.call(e, (e) => !r.includes(e)),
+                  s = [...r, ...o];
+                return (
+                  s.forEach((e, t) => {
+                    ((e._recommendRank = t),
+                      (e._recommendIsIdeal =
+                        0 === t && (e._recommendScore || 0) >= 150));
+                  }),
+                  o.forEach((e) => (e._recommendRank = 999)),
+                  s
+                );
+              },
+              o = (e) => {
+                if (!e || e._recommendPatched) return e;
+                const t = e.sort;
+                e.sort = function () {
+                  t.apply(this, arguments);
+                  const e = r(this);
+                  for (let t = 0; t < e.length; t++) this[t] = e[t];
+                  return this;
+                };
+                const n = e.filter;
+                return (
+                  (e.filter = function () {
+                    const e = n.apply(this, arguments),
+                      t = r(e);
+                    return o(t);
+                  }),
+                  (e._recommendPatched = !0),
+                  e
+                );
+              };
+            n = o(r(n));
+            try {
+              (Object.defineProperty(t, "Results", {
+                get: () => n,
+                set: (e) => {
+                  n = o(r(e));
+                },
+                configurable: !0,
+                enumerable: !0,
+              }),
+                console.log(
+                  "[EasyTorrent] Контекстна фільтрація активована",
+                ));
+            } catch (e) {
+              console.log("[EasyTorrent] Помилка при фіксації топів:", e);
+            }
+          }
+          return n.apply(this, arguments);
+        },
+        r,
+      );
+    }),
+      console.log("[EasyTorrent] Parser.get пропатчено!"));
+  }
+
+  function E() {
+    (console.log("[EasyTorrent]", t),
+      (function () {
+        const e = Lampa.Storage.get("easytorrent_config_json");
+        if (e)
+          try {
+            const t = "string" == typeof e ? JSON.parse(e) : e;
+            if (t && ("2.0" === t.version || 2 === t.version))
+              return void (d = t);
+          } catch (e) {}
+        d = l;
+      })(),
+      (function () {
+        const e = document.createElement("style");
+        ((e.textContent =
+          '\n/* Панель рекомендацій (футер всередині .torrent-item) */\n.torrent-recommend-panel{\n    display: flex;\n    align-items: center;\n    gap: 0.9em;\n    margin: 0.8em -1em -1em;        /* "приклеюємо" до країв картки */\n    padding: 0.75em 1em 0.85em;\n    border-radius: 0 0 0.3em 0.3em; /* співпадає з torrent-item */\n    border-top: 1px solid rgba(255,255,255,0.10);\n    background: rgba(0,0,0,0.18);\n    backdrop-filter: blur(6px);\n    -webkit-backdrop-filter: blur(6px);\n}\n\n.torrent-recommend-panel__left{\n    min-width: 0;\n    flex: 1 1 auto;\n}\n\n.torrent-recommend-panel__label{\n    font-size: 0.95em;\n    font-weight: 800;\n    letter-spacing: 0.2px;\n    color: rgba(255,255,255,0.92);\n    line-height: 1.15;\n}\n\n.torrent-recommend-panel__meta{\n    margin-top: 0.25em;\n    font-size: 0.82em;\n    font-weight: 600;\n    color: rgba(255,255,255,0.58);\n    white-space: nowrap;\n    overflow: hidden;\n    text-overflow: ellipsis;\n}\n\n.torrent-recommend-panel__right{\n    flex: 0 0 auto;\n    display: flex;\n    align-items: center;\n}\n\n.torrent-recommend-panel__score{\n    font-size: 1.05em;\n    font-weight: 900;\n    padding: 0.25em 0.55em;\n    border-radius: 0.6em;\n    background: rgba(255,255,255,0.10);\n    border: 1px solid rgba(255,255,255,0.12);\n    color: rgba(255,255,255,0.95);\n}\n\n/* Чіпси breakdown */\n.torrent-recommend-panel__chips{\n    display: flex;\n    flex: 2 1 auto;\n    gap: 0.45em;\n    flex-wrap: wrap;\n    justify-content: flex-start;\n}\n\n.torrent-recommend-panel__chips:empty{\n    display: none;\n}\n\n.tr-chip{\n    display: inline-flex;\n    align-items: baseline;\n    gap: 0.35em;\n    padding: 0.28em 0.55em;\n    border-radius: 999px;\n    background: rgba(255,255,255,0.08);\n    border: 1px solid rgba(255,255,255,0.10);\n}\n\n.tr-chip__name{\n    font-size: 0.78em;\n    font-weight: 700;\n    color: rgba(255,255,255,0.60);\n}\n\n.tr-chip__val{\n    font-size: 0.86em;\n    font-weight: 900;\n    color: rgba(255,255,255,0.92);\n}\n\n.tr-chip--pos{\n    background: rgba(76,175,80,0.10);\n    border-color: rgba(76,175,80,0.22);\n}\n.tr-chip--pos .tr-chip__val{ color: rgba(120,255,170,0.95); }\n\n.tr-chip--neg{\n    background: rgba(244,67,54,0.10);\n    border-color: rgba(244,67,54,0.22);\n}\n.tr-chip--neg .tr-chip__val{ color: rgba(255,120,120,0.95); }\n\n/* Варіанти */\n.torrent-recommend-panel--ideal{\n    background: linear-gradient(135deg, rgba(255,215,0,0.16) 0%, rgba(255,165,0,0.08) 100%);\n    border-top-color: rgba(255,215,0,0.20);\n}\n.torrent-recommend-panel--ideal .torrent-recommend-panel__label{\n    color: rgba(255,235,140,0.98);\n}\n\n.torrent-recommend-panel--recommended{\n    background: rgba(76,175,80,0.08);\n    border-top-color: rgba(76,175,80,0.18);\n}\n.torrent-recommend-panel--recommended .torrent-recommend-panel__label{\n    color: rgba(160,255,200,0.92);\n}\n\n/* Анімація */\n.torrent-recommend-panel{\n    animation: tr-panel-in 0.22s ease-out;\n}\n@keyframes tr-panel-in{\n    from{ opacity: 0; transform: translateY(-3px); }\n    to{ opacity: 1; transform: translateY(0); }\n}\n\n/* Підсвітка */\n.torrent-item.focus .torrent-recommend-panel{\n    background: rgba(255,255,255,0.08);\n    border-top-color: rgba(255,255,255,0.16);\n}\n\n/* Компакт */\n@media (max-width: 520px){\n    .torrent-recommend-panel{\n        gap: 0.7em;\n        padding: 0.65em 0.9em 0.75em;\n    }\n    .torrent-recommend-panel__meta{\n        display: none;\n    }\n}\n'),
+          document.head.appendChild(e));
+      })(),
+      V(),
+      window.Lampa && window.Lampa.Parser
+        ? I()
+        : setTimeout(() => {
+            I();
+          }, 1e3),
+      Lampa.Listener.follow("torrent", (e) => {
+        "render" === e.type && C(e);
+      }),
+      Lampa.Listener.follow("activity", (e) => {
+        "start" === e.type &&
+          "torrents" === e.component &&
+          (console.log("[EasyTorrent] Нова сторінка торрентів"), (a = []));
+      }),
+      console.log("[EasyTorrent] Готовий до роботи!"));
+  }
+  window.appready
+    ? E()
+    : Lampa.Listener.follow("app", (e) => {
+        "ready" === e.type && E();
+      });
 })();
